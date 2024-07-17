@@ -30,18 +30,6 @@ config RASPI_DEBUG_SERIAL_CONSOLE
           Choose serial console for the debug printing
 endmenu
 
-menu "Devices"
-config RASPI_LCD
-       bool "DSI LCD screen"
-       default n
-       depends on ARCH_ARM_64
-
-config RASPI_TOUCHSCREEN
-       bool "Touch screen"
-       default n
-       depends on ARCH_ARM_64
-endmenu
-
 menu "Profiling"
 config RASPI_WATERMARK_STACK
        bool "Watermark Stack"
