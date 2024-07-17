@@ -16,7 +16,7 @@ Configuration options have not currently been setup properly. This means that yo
 
 To run the Nginx program clone the follwing repository:
 ```
-git clone https://github.com/unikraft/app-nginx
+git clone https://github.com/unikraft/app-nginx && cd app-nginx
 ```
 
 Create a `workdir` folder and clone Unikraft into it using the following command:
@@ -26,7 +26,7 @@ mkdir workdir && git clone -b RELEASE-0.16.3 https://github.com/unikraft/unikraf
 
 Clone this repository into **unikraft/plat/** using following command:
 ```
-git clone https://github.com/jobpaardekooper/unikraft-rpi.git workdir/unikraft/raspi
+git clone https://github.com/jobpaardekooper/unikraft-rpi.git workdir/unikraft/plat/raspi
 ```
 
 Update **unikraft/plat/Makefile.uk** to register the Raspberry Pi platform we just cloned:
@@ -39,6 +39,7 @@ In your `workdir` directory create a `libs` folder and clone the following libra
 cd workdir
 git clone https://github.com/unikraft/lib-lwip.git libs/lwip && cd libs/lwip && git checkout e20459c47a6b5ab16967c15b220686c5be50d4d7 && cd ../..
 git clone https://github.com/unikraft/lib-musl libs/musl && cd libs/musl && git checkout fd1abc9257b40a74c69b3a40467a453bf8892439 && cd ../..
+git clone https://github.com/unikraft/lib-nginx libs/nginx && cd libs/nginx && git checkout 36a030031ce705934dd1ed6e69fdcd113a287bfe && cd ../..
 cd ..
 ```
 
@@ -50,7 +51,7 @@ cd rootfs && find -depth -print | tac | bsdcpio -o --format newc > ../initrd.cpi
 - run `make menuconfig`
 - select/deselect the following options in the make menuconfig:
 	- Architecture Selection --> Architecture --> select: Armv8 compatible (64 bits)
-	- Architecture Selection --> Processor Optimization --> select: Generic Armv8 Cortex A53
+	- Architecture Selection --> Target Processor --> select: Cortex-A53
 	- Architecture Selection --> deselect: Workaround for Cortex-A73 erratum
 	- Platform Configuration --> select: Raspberry Pi 3B
 	- Library Configuration --> ukboot --> deselect: Show Unikraft banner (this is to minimize boot time)
