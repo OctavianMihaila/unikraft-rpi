@@ -1,5 +1,9 @@
 # Raspberry Pi platform for [Unikraft](https://unikraft.org)
 
+## Measurements
+
+The thesis and measurements are located in the `measurements` folder.
+
 ## History
 
 This project was forked from the [`plat-raspi` GitHub repo using branch `sikkiladho-devel`](https://github.com/SikkiLadho/plat-raspi/tree/sikkiladho-devel) by [Mushahid Hussain (SikkiLadho)](https://github.com/SikkiLadho). Which was in turn a fork of [`plat-raspi` GitHub repo using branch `spagani-devel`](https://github.com/unikraft/plat-raspi/tree/spagani-devel) by Santiago Pagani. The code seems to be origionally created for the paper ["Towards Highly Specialized, POSIX -compliant Software Stacks with Unikraft: Work-in-Progress"](https://ieeexplore.ieee.org/document/9244044). These origional implementations were for the Raspberry Pi 3B+ but when developing this further for my thesis I put a focus on the Raspberry Pi 3B. The results of my thesis and the resulting measurements can be found in the `measurements` branch of this repository.
