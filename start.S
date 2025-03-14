@@ -30,6 +30,11 @@
 #include <raspi/mmu.h>
 #include <uk/config.h>
 
+.global dtb_addr
+
+.section ".data"
+dtb_addr:   .quad 0  // Reserve 8 bytes for the DTB address
+
 .section ".text.boot"
 
 .global _start
@@ -59,6 +64,11 @@ master:
 	
 	ldr		x0, =SCTLR_EL2_VALUE
 	msr		sctlr_el2, x0
+
+// Store DTB Address
+    adr     x1, =dtb_addr
+    str     x0, [x1]
+
 
 // Disable coprocessor traps
 	ldr		x0, =CPACR_EL1_VALUE

@@ -2,35 +2,9 @@
 /*
  * Authors: Santiago Pagani <santiagopagani@gmail.com>
  *
- * Copyright (c) 2020, NEC Laboratories Europe GmbH, NEC Corporation.
- *                     All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the copyright holder nor the names of its
- *    contributors may be used to endorse or promote products derived from
- *    this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * THIS HEADER MAY NOT BE EXTRACTED OR MODIFIED IN ANY WAY.
+ * This file contains the setup code for the Unikraft platform on Raspberry Pi.
+ * It initializes memory, interrupts, and prints debug information.
+ * It also retrieves and prints Device Tree (DTB) information.
  */
 
 #include <uk/plat/common/bootinfo.h>
@@ -45,147 +19,170 @@
 #include <uk/print.h>
 #include <uk/arch/types.h>
 #include <stdio.h>
-
 #include <raspi/setup.h>
+
+// DTB address from start.S
+extern uint64_t dtb_addr;
+
+// Device Tree Header Structure
+struct dtb_header {
+    uint32_t magic;
+    uint32_t totalsize;
+    uint32_t off_dt_struct;
+    uint32_t off_dt_strings;
+    uint32_t off_mem_rsvmap;
+    uint32_t version;
+    uint32_t last_comp_version;
+};
+
+// Convert big-endian to little-endian (needed for DTB fields)
+static uint32_t dtb_swap_endian(uint32_t val) {
+    return ((val >> 24) & 0xFF) | ((val >> 8) & 0xFF00) |
+           ((val << 8) & 0xFF0000) | ((val << 24) & 0xFF000000);
+}
+
+// Retrieve the DTB address
+uint32_t get_dtb_addr(void) {
+    return (uint32_t)dtb_addr;
+}
+
+// Print DTB Header Information
+void print_dtb_header(void *dtb) {
+    struct dtb_header *hdr = (struct dtb_header *)dtb;
+
+    // Convert fields from big-endian to little-endian
+    uint32_t magic = dtb_swap_endian(hdr->magic);
+    uint32_t totalsize = dtb_swap_endian(hdr->totalsize);
+    uint32_t off_dt_struct = dtb_swap_endian(hdr->off_dt_struct);
+    uint32_t off_dt_strings = dtb_swap_endian(hdr->off_dt_strings);
+
+    uk_pr_info("\n--- Device Tree Header ---\n");
+    uk_pr_info("Magic: 0x%x\n", magic);
+    uk_pr_info("Total Size: 0x%x\n", totalsize);
+    uk_pr_info("DT Structure Offset: 0x%x\n", off_dt_struct);
+    uk_pr_info("DT Strings Offset: 0x%x\n", off_dt_strings);
+}
+
+// Print raw DTB memory (hex dump for debugging)
+void print_raw_dtb(void *dtb, size_t size) {
+    unsigned char *data = (unsigned char *)dtb;
+    uk_pr_info("\n--- Raw DTB Memory Dump ---\n");
+
+    for (size_t i = 0; i < size; i++) {
+        uk_pr_info("%02X ", data[i]);
+        if ((i + 1) % 16 == 0)
+            uk_pr_info("\n");
+    }
+    uk_pr_info("\n");
+}
+
+// Print readable strings from the DTB strings section
+void print_dtb_strings(void *dtb, uint32_t offset) {
+    uk_pr_info("\n--- DTB Strings Section ---\n");
+
+    char *str = (char *)(dtb + offset);
+    while (*str) {
+        uk_pr_info("%s\n", str);
+        str += uk_strlen(str) + 1;  // Move to next string
+    }
+}
 
 static uint64_t assembly_entry;
 static uint64_t hardware_init_done;
 
-uint64_t _libraspiplat_get_reset_time(void)
-{
-	return assembly_entry;
+// Function to get the reset time
+uint64_t _libraspiplat_get_reset_time(void) {
+    return assembly_entry;
 }
 
-uint64_t _libraspiplat_get_hardware_init_time(void)
-{
-	return hardware_init_done;
+// Function to get the hardware init time
+uint64_t _libraspiplat_get_hardware_init_time(void) {
+    return hardware_init_done;
 }
 
-static void __libraspiplat_mem_init(void) 
-{
-	struct ukplat_bootinfo *bi = ukplat_bootinfo_get();
-	if (unlikely(!bi)) {
-		UK_CRASH("Failed to get bootinfo\n");
-	}
+// Memory Initialization
+static void __libraspiplat_mem_init(void) {
+    struct ukplat_bootinfo *bi = ukplat_bootinfo_get();
+    if (unlikely(!bi)) {
+        UK_CRASH("Failed to get bootinfo\n");
+    }
 
-	// stack
-	int rc = ukplat_memregion_list_insert(
-		&bi->mrds,
-		&(struct ukplat_memregion_desc){
-			.vbase = 0,
-			.pbase = 0,
-			.len   = __TEXT,
-			.type  = UKPLAT_MEMRT_RESERVED,
-			.flags = UKPLAT_MEMRF_READ |
-					UKPLAT_MEMRF_WRITE,
-		});
-	if (unlikely(rc < 0))
-		uk_pr_err("Failed to add stack memory region descriptor.\n");
+    // Define memory regions (stack, text, rodata, data, bss, heap)
+    int rc;
 
-	// text
-	rc = ukplat_memregion_list_insert(
-		&bi->mrds,
-		&(struct ukplat_memregion_desc){
-			.vbase = __TEXT,
-			.pbase = __TEXT,
-			.len   = (size_t) __ETEXT - (size_t) __TEXT,
-			.type  = UKPLAT_MEMRT_RESERVED,
-			.flags = UKPLAT_MEMRF_READ,
-		});
-	if (unlikely(rc < 0))
-		uk_pr_err("Failed to add text memory region descriptor.\n");
+    rc = ukplat_memregion_list_insert(
+        &bi->mrds,
+        &(struct ukplat_memregion_desc){
+            .vbase = 0,
+            .pbase = 0,
+            .len   = __TEXT,
+            .type  = UKPLAT_MEMRT_RESERVED,
+            .flags = UKPLAT_MEMRF_READ | UKPLAT_MEMRF_WRITE,
+        });
+    if (unlikely(rc < 0))
+        uk_pr_err("Failed to add stack memory region descriptor.\n");
 
-	// rodata
-	rc = ukplat_memregion_list_insert(
-		&bi->mrds,
-		&(struct ukplat_memregion_desc){
-			.vbase = __RODATA,
-			.pbase = __RODATA,
-			.len   = (size_t) __ERODATA - (size_t) __RODATA,
-			.type  = UKPLAT_MEMRT_RESERVED,
-			.flags = UKPLAT_MEMRF_READ,
-		});
-	if (unlikely(rc < 0))
-		uk_pr_err("Failed to add rodata memory region descriptor.\n");
+    rc = ukplat_memregion_list_insert(
+        &bi->mrds,
+        &(struct ukplat_memregion_desc){
+            .vbase = __TEXT,
+            .pbase = __TEXT,
+            .len   = (size_t) __ETEXT - (size_t) __TEXT,
+            .type  = UKPLAT_MEMRT_RESERVED,
+            .flags = UKPLAT_MEMRF_READ,
+        });
+    if (unlikely(rc < 0))
+        uk_pr_err("Failed to add text memory region descriptor.\n");
 
-	// TODO: Why is this section usually 0? Can we just always leave it out?
-	if ((size_t) __ECTORS - (size_t) __CTORS != 0) {
-		// ctors
-		rc = ukplat_memregion_list_insert(
-			&bi->mrds,
-			&(struct ukplat_memregion_desc){
-				.vbase = __CTORS,
-				.pbase = __CTORS,
-				.len   = (size_t) __ECTORS - (size_t) __CTORS,
-				.type  = UKPLAT_MEMRT_RESERVED,
-				.flags = UKPLAT_MEMRF_READ,
-			});
-		if (unlikely(rc < 0))
-			uk_pr_err("Failed to add ctors memory region descriptor.\n");
-	}
+    rc = ukplat_memregion_list_insert(
+        &bi->mrds,
+        &(struct ukplat_memregion_desc){
+            .vbase = __RODATA,
+            .pbase = __RODATA,
+            .len   = (size_t) __ERODATA - (size_t) __RODATA,
+            .type  = UKPLAT_MEMRT_RESERVED,
+            .flags = UKPLAT_MEMRF_READ,
+        });
+    if (unlikely(rc < 0))
+        uk_pr_err("Failed to add rodata memory region descriptor.\n");
 
-	// data
-	rc = ukplat_memregion_list_insert(
-		&bi->mrds,
-		&(struct ukplat_memregion_desc){
-			.vbase = __DATA,
-			.pbase = __DATA,
-			.len   = (size_t) __EDATA - (size_t) __DATA,
-			.type  = UKPLAT_MEMRT_RESERVED,
-			.flags = UKPLAT_MEMRF_READ |
-					UKPLAT_MEMRF_WRITE,
-		});
-	if (unlikely(rc < 0))
-		uk_pr_err("Failed to add data memory region descriptor.\n");
-
-	// bss
-	rc = ukplat_memregion_list_insert(
-		&bi->mrds,
-		&(struct ukplat_memregion_desc){
-			.vbase = __BSS_START,
-			.pbase = __BSS_START,
-			.len   = (size_t) __END - (size_t) __BSS_START,
-			.type  = UKPLAT_MEMRT_RESERVED,
-			.flags = UKPLAT_MEMRF_READ |
-					UKPLAT_MEMRF_WRITE,
-		});
-	if (unlikely(rc < 0))
-		uk_pr_err("Failed to add bss memory region descriptor.\n");
-
-	// heap
-	rc = ukplat_memregion_list_insert(
-		&bi->mrds,
-		&(struct ukplat_memregion_desc){
-			.vbase = __END,
-			.pbase = __END,
-			.len   = (size_t) ((MMIO_BASE/2 - 1) - (size_t) __END) / __PAGE_SIZE * __PAGE_SIZE,
-			.type  = UKPLAT_MEMRT_FREE,
-			.flags = UKPLAT_MEMRF_READ |
-					UKPLAT_MEMRF_WRITE |
-					UKPLAT_MEMRF_MAP,
-		});
-	if (unlikely(rc < 0))
-		uk_pr_err("Failed to add heap memory region descriptor.\n");
+    // Add heap
+    rc = ukplat_memregion_list_insert(
+        &bi->mrds,
+        &(struct ukplat_memregion_desc){
+            .vbase = __END,
+            .pbase = __END,
+            .len   = (size_t) ((MMIO_BASE / 2 - 1) - (size_t) __END) / __PAGE_SIZE * __PAGE_SIZE,
+            .type  = UKPLAT_MEMRT_FREE,
+            .flags = UKPLAT_MEMRF_READ | UKPLAT_MEMRF_WRITE | UKPLAT_MEMRF_MAP,
+        });
+    if (unlikely(rc < 0))
+        uk_pr_err("Failed to add heap memory region descriptor.\n");
 }
 
-void _libraspiplat_entry(uint64_t low0, uint64_t hi0, uint64_t low1, uint64_t hi1)
-{
-	__libraspiplat_mem_init();
+// Platform Entry Function (called from start.S)
+void _libraspiplat_entry(uint64_t low0, uint64_t hi0, uint64_t low1, uint64_t hi1) {
+    __libraspiplat_mem_init();
+    ukplat_irq_init();
 
-	ukplat_irq_init();
-
-	if (hi0 == hi1) {
-		assembly_entry = ((hi0 << 32)&0xFFFFFFFF00000000) | (low0&0xFFFFFFFF);
-	} else {
-		assembly_entry = ((hi1 << 32)&0xFFFFFFFF00000000) | (low1&0xFFFFFFFF);
-	}
+    if (hi0 == hi1) {
+        assembly_entry = ((hi0 << 32) & 0xFFFFFFFF00000000) | (low0 & 0xFFFFFFFF);
+    } else {
+        assembly_entry = ((hi1 << 32) & 0xFFFFFFFF00000000) | (low1 & 0xFFFFFFFF);
+    }
 
     _libraspiplat_init_console();
-	
-	hardware_init_done = get_system_timer();
+    hardware_init_done = get_system_timer();
 
-	/*
-	 * Enter Unikraft
-	 */
-	ukplat_entry(0, 0);
+    // Print DTB Address & Info
+    uint32_t dtb_address = get_dtb_addr();
+    uk_pr_info("DTB Address: 0x%x\n", dtb_address);
+    print_dtb_header((void *)dtb_address);
+    print_raw_dtb((void *)dtb_address, 512);
+    struct dtb_header *hdr = (struct dtb_header *)dtb_address;
+    uint32_t dt_strings_offset = dtb_swap_endian(hdr->off_dt_strings);
+    print_dtb_strings((void *)dtb_address, dt_strings_offset);
+
+    // Enter Unikraft
+    ukplat_entry(0, 0);
 }
