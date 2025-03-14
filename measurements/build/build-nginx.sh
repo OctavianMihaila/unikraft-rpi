@@ -4,7 +4,7 @@ git clone https://github.com/unikraft/app-nginx && cd app-nginx
 
 mkdir workdir && git clone -b RELEASE-0.16.3 https://github.com/unikraft/unikraft.git workdir/unikraft
 
-git clone https://github.com/jobpaardekooper/unikraft-rpi.git workdir/unikraft/plat/raspi
+git clone -b "custom-scripts-measurements" https://github.com/OctavianMihaila/unikraft-rpi/ workdir/unikraft/plat/raspi
 
 cd workdir/unikraft/plat && echo '$(eval $(call import_lib,$(UK_PLAT_BASE)/raspi))' >> Makefile.uk && cd ../../..
 
