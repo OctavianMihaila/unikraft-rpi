@@ -36,39 +36,25 @@
 #ifndef __RASPI_IRQ_H__
 #define __RASPI_IRQ_H__
 
+#include <uk/intctlr.h>
 #include <raspi/sysregs.h>
 
-typedef int (*irq_handler_func_t)(void *);
+// Platform-level IRQ IDs (the old 4 you already expose).
+#define IRQ_ID_ARM_GENERIC_TIMER             0
+#define IRQ_ID_RASPI_ARM_SIDE_TIMER          1
+#define IRQ_ID_RASPI_USB                     2
+#define IRQ_ID_RASPI_ARM_SYSTEM_TIMER_IRQ_3  3
+#define IRQS_MAX                             64
 
-int ukplat_irq_register(unsigned long irq, irq_handler_func_t func, void *arg);
+// Hardware IRQ lines in the Pi’s interrupt controller
+#define RPI_HWIRQ_ARM_GENERIC_TIMER          63
+#define RPI_HWIRQ_ARM_SIDE_TIMER            64
+#define RPI_HWIRQ_RASPI_USB                  9
+#define RPI_HWIRQ_ARM_SYSTEM_TIMER_IRQ_3     3
 
-/* type definitions */
-typedef unsigned long k_sigset_t;
-typedef struct {
-	unsigned long fds_bits[128 / sizeof(long)];
-} k_fd_set;
-
-/* sigaction */
-typedef void (*uk_sighandler_t)(int);
-typedef void (*uk_sigrestore_t)(void);
-
-struct uk_sigaction {
-	uk_sighandler_t k_sa_handler;
-	int k_sa_flags;
-	uk_sigrestore_t k_sa_restorer;
-	k_sigset_t k_sa_mask;
-};
-/* IRQ handlers declarations */
-struct irq_handler {
-	/* func() special values:
-	 *   NULL: free,
-	 *   HANDLER_RESERVED: reserved
-	 */
-	irq_handler_func_t func;
-	void *arg;
-
-	struct uk_sigaction oldaction;
-};
+#ifndef MMIO_BASE
+#define MMIO_BASE  0x3F000000
+#endif
 
 #define IRQ_BASIC_PENDING	((volatile __u32 *)(MMIO_BASE+0x0000B200))
 #define IRQ_PENDING_1		((volatile __u32 *)(MMIO_BASE+0x0000B204))
@@ -89,13 +75,18 @@ struct irq_handler {
 #define IRQS_1_SYSTEM_TIMER_IRQ_3	(1 << 3)
 #define IRQS_1_USB_IRQ				(1 << 9)
 
-#define IRQS_MAX							4
-#define IRQ_ID_ARM_GENERIC_TIMER			0
-#define IRQ_ID_RASPI_ARM_SIDE_TIMER			1
-#define IRQ_ID_RASPI_USB					2
-#define IRQ_ID_RASPI_ARM_SYSTEM_TIMER_IRQ_3 3
+typedef int (*irq_handler_func_t)(void *);
 
-void irq_vector_init( void );
+
+/* The platform-level functions that the rest of the code calls
+ * to register and init interrupts. 
+ */
+int ukplat_irq_register(unsigned long irq, irq_handler_func_t func, void *arg);
 int ukplat_irq_init(void);
+
+/* This function is called by the exception/IRQ vector
+ * and passes the regs and hardware line to uk_intctlr. 
+ */
+void ukplat_irq_handle(struct __regs *regs);
 
 #endif /* __RASPI_IRQ_H__ */
