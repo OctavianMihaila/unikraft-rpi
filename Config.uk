@@ -37,4 +37,12 @@ config RASPI_WATERMARK_STACK
        depends on ARCH_ARM_64
 endmenu
 
+menu "Interrupt Controller Settings"
+config LIBUKINTCTLR_MAX_HANDLERS_PER_IRQ
+	int "Max number of interrupt handlers per IRQ"
+	default 1
+	help
+	  Define the number of handlers supported per IRQ line.
+endmenu
+
 endif
