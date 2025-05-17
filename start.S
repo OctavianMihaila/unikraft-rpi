@@ -195,16 +195,25 @@ jump_to_C:
 	b.ls	9999b
 	.endm
 
+/* ------------------------------------------------------------------------
+ * Two-level page tables: PGD→PUD→PMD.  
+ * PUD[0] maps RAM and SoC devices via 2 MiB sections.  
+ * PUD[1] gets its own PMD for a 2 MiB local-INTC region.  
+ * Keeps all MMIO confined to one page, RAM mapping untouched.
+ * ------------------------------------------------------------------------
+ */
 create_page_tables:
 	mov	x29, x30						// save return address
 
-	adrp	x0, _pagetables
-	mov	x1, #PG_DIR_SIZE
-	bl 	memzero
+	// clear 5 contiguous pages reserved in .pagetables
+	adrp    x0, _pagetables
+	mov     x1, #(PG_DIR_SIZE + 2*PAGE_SIZE) // 5 × 4 KiB = 20 KiB
+	bl      memzero
 
-	adrp	x0, _pagetables
-	mov		x1, #VA_START 
-	create_pgd_entry x0, x1, x2, x3
+	// Build PGD, PUD‑0, PMD‑0
+	adrp    x0, _pagetables           // x0 = PGD base (page 0)
+	mov     x1, #VA_START
+	create_pgd_entry  x0, x1, x2, x3  // alloc PUD‑0 (page 1) + PMD‑0 (page 2)
 
 	/* Mapping kernel and init stack*/
 	mov 	x1, xzr											// start mapping from physical offset 0
@@ -217,6 +226,27 @@ create_page_tables:
 	ldr 	x2, =(VA_START + DEVICE_BASE)				// first virtual address
 	ldr	x3, =(VA_START + PHYS_MEMORY_SIZE - SECTION_SIZE)	// last virtual address
 	create_block_map x0, x1, x2, x3, MMU_DEVICE_FLAGS, x4
+
+	// Add PUD‑idx 1 (covers 0x4000 0000 – 0x7FFF FFFF)
+	adrp    x5, _pagetables          // x5 = PGD base again
+	add     x6, x5, #PAGE_SIZE       // x6 = PUD page 1
+
+	/* Compute PUD index for VA 0x4000_0000 – it is 1             */
+	mov     x7, #(VA_START + 0x40000000)
+	lsr     x7, x7, #PUD_SHIFT
+	and     x7, x7, #PTRS_PER_TABLE-1
+
+	// Point PUD[1] to a *new* blank PMD page
+	add     x4, x5, #(4*PAGE_SIZE)   // page 4 in the .pagetables area
+	orr     x4, x4, #MM_TYPE_PAGE_TABLE
+	str     x4, [x6, x7, lsl #3]
+
+	/* Map first 2 MiB at 0x4000 0000 (local‑INTC) as device      */
+	and     x4, x4, #PAGE_MASK       // x4 = PMD‑1 base (phys addr)
+	mov     x1, #0x40000000          // phys
+	ldr     x2, =(VA_START + 0x40000000) // virt
+	ldr     x3, =(VA_START + 0x40000000) // single section
+	create_block_map x4, x1, x2, x3, MMU_DEVICE_FLAGS, x5
 
 	mov	x30, x29						// restore return address
 	ret
