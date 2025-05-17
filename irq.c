@@ -231,11 +231,8 @@ void ukplat_irq_handle(struct __regs *regs)
 	uk_pr_crit("DISABLE_IRQS_1: %u\n", *DISABLE_IRQS_1);
 	uk_pr_crit("DISABLE_IRQS_2: %u\n", *DISABLE_IRQS_2);
 	uk_pr_crit("get_el0(cntv_ctl): %lu\n", get_el0(cntv_ctl));
-	uk_pr_crit("irq_handlers[IRQ_ID_ARM_GENERIC_TIMER]: %lu\n", (unsigned long)irq_handlers[IRQ_ID_ARM_GENERIC_TIMER].func);
-	uk_pr_crit("irq_handlers[IRQ_ID_RASPI_ARM_SIDE_TIMER]: %lu\n", (unsigned long)irq_handlers[IRQ_ID_RASPI_ARM_SIDE_TIMER].func);
-	uk_pr_crit("irq_handlers[IRQ_ID_RASPI_USB]: %lu\n", (unsigned long)irq_handlers[IRQ_ID_RASPI_USB].func);
 
-	while (1)
+	while (1);
 } 
 
 void show_invalid_entry_message(int type)
