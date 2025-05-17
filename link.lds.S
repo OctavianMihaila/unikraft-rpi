@@ -115,7 +115,7 @@ SECTIONS
 	_pagetables = .;
 	.pagetables (NOLOAD) :
 	{
-		. += 3 * __PAGE_SIZE;
+		. += 5 * __PAGE_SIZE;
 	}
 
 	_end = .;
