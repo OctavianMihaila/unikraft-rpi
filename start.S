@@ -400,3 +400,145 @@ create_page_tables:
 
 	mov	x30, x29						// restore return address
 	ret
+
+    .balign 4
+StartSecondarySpin:
+    wfe
+
+.spin:
+    /* Compute this core’s mailbox-0_RD base in x7 */
+    mov   x5, #192
+    movk  x5, #0x4000, lsl #16        /* x5 = 0x4000_00C0 */
+    mrs   x6, MPIDR_EL1
+    and   x6, x6, #0x3
+    ubfiz x6, x6, #4, #4              /* x6 = core_id<<4 */
+    add   x7, x5, x6                  /* x7 = mailbox-0_RD for this core */
+
+    /* Fetch fn */
+    ldr   w4, [x7]
+    cbz   w4, StartSecondarySpin
+
+    /* Rebuild the 64-bit argument */
+    ldr   w0, [x7, #4]                /* mailbox-1_RD → low half */
+    ldr   w1, [x7, #8]                /* mailbox-2_RD → high half */
+    orr   x0, x0, x1, lsl #32
+
+    /* clear all four slots */
+    str     w4, [x7]
+    str     w0, [x7, #4]
+    str     w1, [x7, #8]
+    str     w2, [x7, #12]
+
+	mov   x28, x4          // save the function pointer
+	mov   x29, x0          // save the argument low  64 bits
+	mov   x30, x1          // save the argument high 64 bits (if any)
+
+	bl    enable_secondary_mmu
+
+	/* Restore the argument exactly as the caller expects */
+	mov   x0, x29
+	mov   x1, x30
+	br    x28              // jump to fn(arg) with MMU & caches ON
+
+    /* Never returns */
+    b     StartSecondarySpin
+
+    .balign 0x80
+irq_handler_stub:
+    // Minimal context-save. Only touching X0–X3 here
+    stp    x0, x1, [sp, #-16]!      
+    stp    x2, x3, [sp, #-16]!
+
+    // Clear the local timer interrupt
+	movz  x0, #0x0040          // bottom half
+    movk  x0, #0x4000, lsl #16 // top half
+
+    ldr    w1, [x0]
+    bic    w1, w1, #8          // clear the interrupt‐enable bit
+    str    w1, [x0]
+
+	bl     ukplat_irq_handle
+
+    // Restore context
+    ldp    x2, x3, [sp], #16
+    ldp    x0, x1, [sp], #16
+
+    // Return from exception
+    eret
+
+    .macro vector handler
+      .balign 0x80
+      b \handler
+    .endm
+
+    .balign 0x800
+VectorTable:
+    // EL1, SP1, IRQ slot:
+    .rept 5*4    // skip 5 entries
+      .balign 0x80
+      b hang    
+    .endr
+    .balign 0x80
+    b irq_handler_stub
+
+hang:
+	b hang
+
+/*
+* Core-0 already built the page–tables in the .pagetables
+* area.  We just point TTBR0_EL1 at the same physical pages.
+*/
+enable_secondary_mmu:
+        adrp    x0, _pagetables         // physical address
+        msr     ttbr0_el1, x0           // use it for user&kernel space
+        isb
+
+        ldr     x0, =MAIR_VALUE
+        msr     mair_el1, x0
+        ldr     x0, =TCR_VALUE          // SH=11 inner-shareable!
+        msr     tcr_el1,  x0
+        dsb     sy
+        isb
+
+        ldr     x0, =SCTLR_EL1_VALUE_MMU_ENABLED
+        msr     sctlr_el1, x0
+        isb
+        ret
+
+//"================================================================"
+//       	   DATA FOR SMARTSTART64  EXPOSED TO INTERFACE 
+//"================================================================"
+.section ".data.smartstart64", "aw"
+.balign 8
+
+.globl RPi_IO_Base_Addr;				// Make sure Pi_IO_Base_Addr label is global
+RPi_IO_Base_Addr : .4byte 0;			// Peripheral Base addr is 4 byte variable in 64bit mode
+
+.globl RPi_ARM_TO_GPU_Alias;			// Make sure RPi_ARM_TO_GPU_Alias label is global
+RPi_ARM_TO_GPU_Alias: .4byte 0;			// ARM to GPU alias is 4 byte variable in 32bit mode
+
+.globl RPi_BootAddr;					// Make sure RPi_BootAddr label is global
+RPi_BootAddr : .4byte 0;				// CPU boot address is 4 byte variable in 64bit mode
+
+.globl RPi_CoresReady;					// Make sure RPi_CoresReady label is global
+RPi_CoresReady : .4byte 0;				// CPU cores ready for use is 4 byte variable in 32bit mode
+
+.globl RPi_CPUBootMode;					// Make sure RPi_CPUBootMode label is global
+RPi_CPUBootMode : .4byte 0;				// CPU Boot Mode is 4 byte variable in 64bit mode
+
+.globl RPi_CpuId;						// Make sure RPi_CpuId label is global
+RPi_CpuId : .4byte 0;					// CPU Id is 4 byte variable in 64bit mode
+
+.globl RPi_CompileMode;					// Make sure RPi_CompileMode label is global
+RPi_CompileMode : .4byte 0;				// Compile mode is 4 byte variable in 64bit mode
+
+.globl RPi_SmartStartVer;				// Make sure RPi_SmartStartVer label is global
+RPi_SmartStartVer : .4byte 0x00020104;  // SmartStart version is 4 byte variable in 32bit mode
+
+.balign 8
+.globl RPi_coreCB_PTR;
+RPi_coreCB_PTR: 
+.8byte 0x0;								// Core 0 Control Block pointer
+.8byte 0x0;								// Core 1 Control Block pointer	
+.8byte 0x0;								// Core 2 Control Block pointer
+.8byte 0x0;								// Core 3 Control Block pointer
