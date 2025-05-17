@@ -38,6 +38,8 @@
 
 #include <uk/intctlr.h>
 #include <raspi/sysregs.h>
+#include <raspi/barriers.h>
+#include <raspi/mmio.h>
 
 // Platform-level IRQ IDs (the old 4 you already expose).
 #define IRQ_ID_ARM_GENERIC_TIMER             0
@@ -55,6 +57,16 @@
 #ifndef MMIO_BASE
 #define MMIO_BASE  0x3F000000
 #endif
+
+#define LOCAL_INTC_BASE   0x40000000UL
+#define IRQ_SRC_BASE = 0x40000060
+#define MBOX0_RDCLR_BASE = 0x400000C0
+#define CORE0_MBOX_IRQCNTL   0x50
+#define CORE1_MBOX_IRQCNTL   0x54
+#define CORE2_MBOX_IRQCNTL   0x58
+#define CORE3_MBOX_IRQCNTL   0x5C
+
+#define INT_SRC_MBOX0   (1U << 4)    /* Mailbox 0 pending bit in COREn_IRQ_SOURCE */
 
 #define IRQ_BASIC_PENDING	((volatile __u32 *)(MMIO_BASE+0x0000B200))
 #define IRQ_PENDING_1		((volatile __u32 *)(MMIO_BASE+0x0000B204))
@@ -88,5 +100,31 @@ int ukplat_irq_init(void);
  * and passes the regs and hardware line to uk_intctlr. 
  */
 void ukplat_irq_handle(struct __regs *regs);
+
+
+
+/* Mailbox-0 “set” register for core n (n==0...3) */
+static inline uintptr_t MAILBOX0_SET(uint32_t n)
+{
+    return LOCAL_INTC_BASE + 0x80 + (n * 0x10);
+}
+
+/**
+ * send_ipi() — kick core n out of WFI by setting mailbox 0
+ * n: target core index (0–3)
+ */
+static inline void send_ipi(uint32_t n)
+{
+    uintptr_t reg = MAILBOX0_SET(n);
+
+    /* Ensure all prior memory accesses complete before we set the mailbox */
+    __asm__ volatile("dsb sy" ::: "memory");
+
+    /* Write any non-zero to bit 0 → mailbox IRQ line goes high */
+    mmio_write(reg, 1);
+
+    /* Make sure the write really hits the bus before we proceed */
+    __asm__ volatile("dsb sy" ::: "memory");
+}
 
 #endif /* __RASPI_IRQ_H__ */

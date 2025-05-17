@@ -175,6 +175,22 @@ int ukplat_irq_init(void)
 */
 void ukplat_irq_handle(struct __regs *regs)
 {
+	// Local per-core mailbox IPI (RPI_HWIRQ_MB_RUN)
+	uint32_t core = lcpu_arch_idx();
+
+	/* Read the per-core IRQ source register */
+	uint32_t src = mmio_read(IRQ_SRC_BASE + core*4);
+
+	/* INT_SRC_MBOX0 is bit-4 (0x10) in that src reg */
+	if (src & INT_SRC_MBOX0) {
+		/* clear the mailbox bit by writing ‘1’ to the RDCLR reg */
+		mmio_write(MBOX0_RDCLR_BASE + core*0x10, 1);
+
+		/* Dispatch to the “mailbox run” IRQ line */
+		uk_intctlr_irq_handle(regs, RPI_HWIRQ_MB_RUN);
+		return;
+	}
+
 	// Check “normal” lines 0..63 in the Pi’s intc.
 	for (unsigned nIRQ = 0; nIRQ < IRQS_MAX; nIRQ++) {
 		// Determine which "pending" register to read
@@ -192,12 +208,10 @@ void ukplat_irq_handle(struct __regs *regs)
 	}
 
 	// Check the "basic" bit for the side timer
-	{
-		__u32 irq_bits = *IRQ_BASIC_PENDING & *ENABLE_BASIC_IRQS;
-		if (irq_bits & IRQS_BASIC_ARM_TIMER_IRQ) {
-			uk_intctlr_irq_handle(regs, RPI_HWIRQ_ARM_SIDE_TIMER);
-			return;
-		}
+	__u32 irq_bits = *IRQ_BASIC_PENDING & *ENABLE_BASIC_IRQS;
+	if (irq_bits & IRQS_BASIC_ARM_TIMER_IRQ) {
+		uk_intctlr_irq_handle(regs, RPI_HWIRQ_ARM_SIDE_TIMER);
+		return;
 	}
 
 	// Check the generic timer bit in CNTV_CTL
