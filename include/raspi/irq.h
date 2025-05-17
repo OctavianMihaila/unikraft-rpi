@@ -46,6 +46,8 @@
 #define IRQ_ID_RASPI_ARM_SIDE_TIMER          1
 #define IRQ_ID_RASPI_USB                     2
 #define IRQ_ID_RASPI_ARM_SYSTEM_TIMER_IRQ_3  3
+#define RPI_HWIRQ_MB_RUN 4
+#define RPI_HWIRQ_MB_WAKE 5
 #define IRQS_MAX                             64
 
 // Hardware IRQ lines in the Pi’s interrupt controller
@@ -59,12 +61,17 @@
 #endif
 
 #define LOCAL_INTC_BASE   0x40000000UL
-#define IRQ_SRC_BASE = 0x40000060
-#define MBOX0_RDCLR_BASE = 0x400000C0
+#define IRQ_SRC_BASE 0x40000060
+#define MBOX0_RDCLR_BASE 0x400000C0
+
 #define CORE0_MBOX_IRQCNTL   0x50
 #define CORE1_MBOX_IRQCNTL   0x54
 #define CORE2_MBOX_IRQCNTL   0x58
 #define CORE3_MBOX_IRQCNTL   0x5C
+
+#define QA7_MB0(c)  (0x40000080u + ((c) << 4))  /* mailbox-0 SET */
+#define QA7_MB1(c)  (0x40000084u + ((c) << 4))  /* mailbox-1 SET: arg low */
+#define QA7_MB2(c)  (0x40000088u + ((c) << 4))  /* mailbox-2 SET: arg high */
 
 #define INT_SRC_MBOX0   (1U << 4)    /* Mailbox 0 pending bit in COREn_IRQ_SOURCE */
 
