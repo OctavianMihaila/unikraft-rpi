@@ -88,7 +88,7 @@ LIBRASPIPLAT_SRCS-y				+= $(LIBRASPIPLAT_BASE)/eth/lib/usbstandardhub.c
 LIBRASPIPLAT_SRCS-y				+= $(LIBRASPIPLAT_BASE)/eth/lib/timer2.c
 LIBRASPIPLAT_SRCS-y				+= $(LIBRASPIPLAT_BASE)/eth/lib/interrupt.c
 LIBRASPIPLAT_SRCS-y				+= $(LIBRASPIPLAT_BASE)/drivers/raspi_net.c
-LIBRASPIPLAT_SRCS-y				+= $(LIBRASPIPLAT_BASE)/lcpu.c
+LIBRASPIPLAT_SRCS-y				+= $(LIBRASPIPLAT_BASE)/lcpu_arch_rpi.c
 ifeq ($(findstring y,$(CONFIG_RASPI_LCD) $(CONFIG_RASPI_LCD)),y)
 LIBRASPIPLAT_SRCS-y				+= $(LIBRASPIPLAT_BASE)/lfb.c
 endif
