@@ -166,9 +166,31 @@ exit_el1:
     ldr x0, =vectors_el1						
     msr vbar_el1,x0
 
-	mrs x6, mpidr_el1						// Read core id on ARM8
-	and x6, x6, #0x3						// Make cpu id bitmask
-	cbz x6, cpu0_exit_multicore_park		// Core0 continues on
+
+   //"================================================================"
+   // Enable PMU cycle counter & prepare Generic Timer
+   //"================================================================"
+    // Enable and reset PMU (PMCR_EL0)
+    mov   x0, #(1<<0 | 1<<1 | 1<<2)     // E=1, P=1, C=1
+    msr   PMCR_EL0, x0
+
+    // Enable the cycle-counter itself (bit 31)
+    mov   x0, #(1<<31)
+    msr   PMCNTENSET_EL0, x0
+
+    // (We no longer try to STR cntfrq/last_ccnt here.
+
+    // Schedule first tick.
+    mrs   x1,  CNTFRQ_EL0              // timer freq → x1
+    mrs   x2,  CNTPCT_EL0              // now → x2
+    add   x2,  x2, x1                  // now + 1 sec
+    msr   CNTP_CVAL_EL0, x2
+    mov   x2,  #1
+    msr   CNTP_CTL_EL0, x2
+
+    mrs   x6, mpidr_el1                // Read core id
+    and   x6, x6, #0x3
+    cbz   x6, cpu0_exit_multicore_park
 
 
 //"================================================================"
