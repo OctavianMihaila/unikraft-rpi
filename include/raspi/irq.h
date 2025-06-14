@@ -69,9 +69,9 @@
 #define CORE2_MBOX_IRQCNTL   0x58
 #define CORE3_MBOX_IRQCNTL   0x5C
 
-#define QA7_MB0(c)  (0x40000080u + ((c) << 4))  /* mailbox-0 SET */
-#define QA7_MB1(c)  (0x40000084u + ((c) << 4))  /* mailbox-1 SET: arg low */
-#define QA7_MB2(c)  (0x40000088u + ((c) << 4))  /* mailbox-2 SET: arg high */
+#define A53_MB0(c)  (0x40000080u + ((c) << 4))  /* mailbox-0 SET */
+#define A53_MB1(c)  (0x40000084u + ((c) << 4))  /* mailbox-1 SET: arg low */
+#define A53_MB2(c)  (0x40000088u + ((c) << 4))  /* mailbox-2 SET: arg high */
 
 #define INT_SRC_MBOX0   (1U << 4)    /* Mailbox 0 pending bit in COREn_IRQ_SOURCE */
 

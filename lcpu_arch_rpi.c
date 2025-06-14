@@ -98,12 +98,12 @@ void start_on_core(unsigned core, void (*fn)(void *), void *arg)
 
     DataSyncBarrier();
 
-    /* 2) Split the 64-bit argument across two 32-bit mailboxes */
-    *(volatile uint32_t *)QA7_MB1(core) = (uint32_t)(a & 0xFFFFFFFF);
-    *(volatile uint32_t *)QA7_MB2(core) = (uint32_t)(a >> 32);
+    /* Split the 64-bit argument across two 32-bit mailboxes */
+    *(volatile uint32_t *)A53_MB1(core) = (uint32_t)(a & 0xFFFFFFFF);
+    *(volatile uint32_t *)A53_MB2(core) = (uint32_t)(a >> 32);
 
-    /* 3) Poke the fn-pointer into mailbox-0 (low 32 bits only) */
-    *(volatile uint32_t *)QA7_MB0(core) = (uint32_t)(uintptr_t)fn;
+    /* Poke the fn-pointer into mailbox-0 (low 32 bits only) */
+    *(volatile uint32_t *)A53_MB0(core) = (uint32_t)(uintptr_t)fn;
 
     DataSyncBarrier();
     SendEvent();
