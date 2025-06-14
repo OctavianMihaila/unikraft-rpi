@@ -47,14 +47,14 @@
 
 static int rpi_configure_irq(struct uk_intctlr_irq *irq)
 {
-	/* No extra config needed for the Pi’s intc. */
+	// No extra config needed for the Pi’s intc.
 	return 0;
 }
 
 static int rpi_fdt_xlat(const void *fdt, int nodeoffset,
 						__u32 index, struct uk_intctlr_irq *irq)
 {
-	return -ENOTSUP; /* Not using FDT for this driver. */
+	return -ENOTSUP; // Not using FDT for this driver.
 }
 
 static void rpi_mask_irq(unsigned int hwirq)
@@ -67,7 +67,7 @@ static void rpi_mask_irq(unsigned int hwirq)
 		*DISABLE_BASIC_IRQS = IRQS_BASIC_ARM_TIMER_IRQ;
 	} else if (hwirq == RPI_HWIRQ_ARM_GENERIC_TIMER) {
 		uint64_t ctl = get_el0(cntv_ctl);
-		ctl &= ~GT_TIMER_ENABLE; /* disable timer entirely */
+		ctl &= ~GT_TIMER_ENABLE; // Disable timer entirely
 		set_el0(cntv_ctl, ctl);
 	}
 }
@@ -80,11 +80,11 @@ static void rpi_unmask_irq(unsigned int hwirq)
 		*ENABLE_IRQS_1 = IRQS_1_USB_IRQ;
 	} else if (hwirq == RPI_HWIRQ_ARM_SIDE_TIMER) {
 		*ENABLE_BASIC_IRQS = IRQS_BASIC_ARM_TIMER_IRQ;
-		/* Clear + enable side-timer. */
+		// Clear + enable side-timer.
 		raspi_arm_side_timer_irq_clear();
 		raspi_arm_side_timer_irq_enable();
 	} else if (hwirq == RPI_HWIRQ_ARM_GENERIC_TIMER) {
-		/* Re-enable the ARM generic timer */
+		// Re-enable the ARM generic timer
 		uint64_t ctl = get_el0(cntv_ctl);
 		ctl |= GT_TIMER_ENABLE;
 		set_el0(cntv_ctl, ctl);
@@ -98,7 +98,7 @@ static struct uk_intctlr_driver_ops rpi_intctlr_ops = {
 	.unmask_irq    = rpi_unmask_irq,
 };
 
-/* The global descriptor for Pi intc driver */
+// The global descriptor for Pi intc driver
 static struct uk_intctlr_desc rpi_intctlr_desc = {
 	.name = "rpi-intc",
 	.ops  = &rpi_intctlr_ops,
@@ -116,7 +116,7 @@ int ukplat_irq_register(unsigned long irq, irq_handler_func_t func, void *arg)
 		return -1;
 	}
 
-	/* Translate from "platform IRQ" to actual hardware line: */
+	// Translate from "platform IRQ" to actual hardware line
 	unsigned int hwirq = 0;
 	switch (irq) {
 		case IRQ_ID_ARM_GENERIC_TIMER:
@@ -146,7 +146,7 @@ int ukplat_irq_register(unsigned long irq, irq_handler_func_t func, void *arg)
 
 int ukplat_irq_init(void)
 {
-	/* Possibly flush caches, etc. */
+	// Possibly flush caches, etc.
 	DataSyncBarrier();
 	InvalidateInstructionCache();
 	FlushBranchTargetCache();
@@ -154,7 +154,7 @@ int ukplat_irq_init(void)
 	InstructionSyncBarrier();
 	DataMemBarrier();
 
-	/* Clear + disable all lines first: */
+	// Clear + disable all lines first:
 	*DISABLE_BASIC_IRQS = 0xFFFFFFFF;
 	*DISABLE_IRQS_1     = 0xFFFFFFFF;
 	*DISABLE_IRQS_2     = 0xFFFFFFFF;
@@ -162,7 +162,7 @@ int ukplat_irq_init(void)
 	uk_intctlr_probe();
 	uk_intctlr_init(NULL);
 
-	/* 3) Re-enable CPU-level interrupts */
+	// Re-enable CPU-level interrupts
 	ukplat_lcpu_enable_irq();
 
 	return 0;
@@ -178,20 +178,20 @@ void ukplat_irq_handle(struct __regs *regs)
 	// Local per-core mailbox IPI (RPI_HWIRQ_MB_RUN)
 	uint32_t core = lcpu_arch_idx();
 
-	/* Read the per-core IRQ source register */
+	// Read the per-core IRQ source register
 	uint32_t src = mmio_read(IRQ_SRC_BASE + core*4);
 
-	/* INT_SRC_MBOX0 is bit-4 (0x10) in that src reg */
+	// INT_SRC_MBOX0 is bit-4 (0x10) in that src reg
 	if (src & INT_SRC_MBOX0) {
-		/* clear the mailbox bit by writing ‘1’ to the RDCLR reg */
+		// Clear the mailbox bit by writing ‘1’ to the RDCLR reg
 		mmio_write(MBOX0_RDCLR_BASE + core*0x10, 1);
 
-		/* Dispatch to the “mailbox run” IRQ line */
+		// Dispatch to the “mailbox run” IRQ line
 		uk_intctlr_irq_handle(regs, RPI_HWIRQ_MB_RUN);
 		return;
 	}
 
-	// Check “normal” lines 0..63 in the Pi’s intc.
+	// Check “normal” lines 0..IRQS_MAX in the Pi’s intc.
 	for (unsigned nIRQ = 0; nIRQ < IRQS_MAX; nIRQ++) {
 		// Determine which "pending" register to read
 		volatile uint32_t *pend_reg = (nIRQ < 32) ? IRQ_PENDING_1 : IRQ_PENDING_2;
